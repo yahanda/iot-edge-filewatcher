@@ -4,6 +4,37 @@ Azure IoT Edge module which monitors file creation and puts the filename as mess
 
 This module is forked from [here](https://github.com/iot-edge-foundation/iot-edge-filewatcher), customized it for only filename monitoring.
 
+## Installation
+
+### Clone this repository
+Clone this repository by following command (or download as zip)
+```
+git clone https://github.com/yahanda/iot-edge-filewatcher.git
+```
+
+### Create an Azure Container Registry
+1. Follow the instructions to [Quickstart: Create a private container registry using the Azure portal](https://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-portal)
+1. After your container registry is created, browse to it, and from the left pane select **Access keys** from the menu located under **Settings**.
+1. Enable Admin user and copy the values for **Login server**, **Username**, and **Password** and save them somewhere convenient.
+
+### Build and Push IoT Edge Solution
+1. Open git cloned folder with VS Code.
+1. Update the `.env` with the values you made a note from Azure Container Registry.
+1. Open the Visual Studio Code integrated terminal by selecting **View > Terminal**.
+1. Sign in to Docker with the Azure container registry credentials that you saved after creating the registry.
+    ```
+    docker login -u <ACR username> -p <ACR password> <ACR login server>
+    ```
+1. Open the command palette and search for **Azure IoT Edge: Set Default Target Platform for Edge Solution**, or select the shortcut icon in the side bar at the bottom of the window.
+1. In the command palette, select the target architecture from the list of options.
+1. **Build and Push IoT Edge Solution** by right clicking on `deployment.template.json` file.
+1. Verify `deployment.json` file is generated in the `config` folder.
+
+### Deploy the IoT Edge module
+1. **Create Deployment for Single Device** by right clicking on `deployment.json` file under `config` folder.
+1. Select a targeted IoT Hub and IoT Edge device.
+1. The results of your deployment are printed in the VS Code output. Successful deployments are applied within a few minutes if the target device is running and connected to the internet.
+
 ## Container create options
 
 This module makes use of Docker volumes to detect and access files on disk.
