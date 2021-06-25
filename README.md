@@ -1,16 +1,12 @@
 # iot-edge-filewatcher
 
-Azure IoT Edge module which reads CSV files and puts the rows as messages on the IoT Edge routing 
+Azure IoT Edge module which monitors file creation and puts the filename as messages on the IoT Edge routing 
 
-## Image URI
-
-This module is open source so you can build your own Docker container.
-
-For convenience, a Linux AMD64 version is availabel at svelde/iot-edge-filewatcher:1.0.0-amd64 
+This module is forked from [here](https://github.com/iot-edge-foundation/iot-edge-filewatcher), customized it for only filename monitoring.
 
 ## Container create options
 
-This module makes use of Docker volumes to detect and access CSV files on disk.
+This module makes use of Docker volumes to detect and access files on disk.
 
 Use these container create options:
 
@@ -48,35 +44,29 @@ sudo chmod 666 exchange
 
 The module check the 'exchange' folder every few seconds to detect new files using a certain search pattern.
 
-if a file is found, it expects the column names on the first row and it tries to map the column to the rows in the file.
-
-It splits each line using a delimeter.
-
 After processing, the file is renamed using a new extension which is appended to the orginal filename.
 
 With desired properties, we can change the behavior:
 
-* delimiter, a single character - Default ','
 * interval, the interval in milliseconds - Default 10000
 * searchPattern, the pattern mapped on filenames  - Default '*.txt'
 * renameExtension, the appended extension to prevent a file being read twice - Default '.old'
-* lineDelay, delays the processing of the file for each line sent - Default 0
 
 ## Messages
 
-The messages outputted are equal to the columns and lines of the incoming file.
+The messages outputted are JSON messages that contains the filename (full path) and filesize (byte) of the incoming file.
 
-If the file contains 11 rows (1 header row and 10 rows with values), the module will send 10 messages.
-
-Empty lines in the file are ignored.
-
-Each messages gets also these extra values:
-
-* lineNumber
-* fileName
-* timestamp
-* moduleId
-* deviceId
+```
+06/25/2021 03:53:13 - Seen 0 files with pattern '*.txt'
+06/25/2021 03:53:23 - Seen 0 files with pattern '*.txt'
+06/25/2021 03:53:33 - Seen 1 files with pattern '*.txt'
+File found: '/app/exchange/a.txt' - Size: 15 bytes.
+Sending message: {"filename":"/app/exchange/a.txt","filesize":15}
+Renamed '/app/exchange/a.txt' to '/app/exchange/a.txt.old'
+06/25/2021 03:53:44 - Seen 0 files with pattern '*.txt'
+06/25/2021 03:53:54 - Seen 0 files with pattern '*.txt'
+06/25/2021 03:54:04 - Seen 0 files with pattern '*.txt'
+```
 
 ## File access
 

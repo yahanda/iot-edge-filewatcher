@@ -6,23 +6,19 @@ namespace FileWatcherModule
     using System.IO;
     using System.Runtime.Loader;
     using System.Text;
+    using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Azure.Devices.Client;
     using Microsoft.Azure.Devices.Client.Transport.Mqtt;
     using Microsoft.Azure.Devices.Shared;
-    using Newtonsoft.Json;
+    //using Newtonsoft.Json;
 
     class Program
     {
-        private const string DefaultDelimiter = ",";
         private const int DefaultInterval = 10000;
         private const string DefaultSearchPattern = "*.txt";
         private const string DefaultRenameExtension = ".old";
-
-        private static int _lineNumber;
-
-        private static int DefaultLineDelay = 0;  
 
         private static string _moduleId;
 
@@ -123,8 +119,6 @@ namespace FileWatcherModule
                     {
                         foreach(var fileName in files)
                         {
-                            _lineNumber = 0;
-
                             try
                             {
                                 var canRead = false;
@@ -149,92 +143,26 @@ namespace FileWatcherModule
                                 continue;
                             }
 
-                            var fileInfo = new FileInfo(fileName);
-
-                            System.Console.WriteLine($"File found: '{fileInfo.FullName}' - Size: {fileInfo.Length} bytes.");
-
-                            if (fileInfo.Length == 0)
-                            {
-                                System.Console.WriteLine($"'{fileName}' is empty.");
-
-                                continue;
-                            }
-
-                            var lines= File.ReadAllLines(fileName);
-
-                            var i = 0;    
-
-                            var count = 0;
-
-                            string[] headers = new string[]{};
-
-                            foreach(var line in lines)
-                            {
-                                if (string.IsNullOrWhiteSpace(line))
-                                {
-                                    System.Console.WriteLine($"Ignored empty line {i+1}");
-                                }
-                                else
-                                {
-                                    if (i == 0)
-                                    {
-                                        headers = line.Split(Delimiter);
-                                    }
-                                    else
-                                    {
-                                        var expando = new ExpandoObject() as IDictionary<string, Object>;              
-
-                                        // System.Console.WriteLine(line);
-
-                                        var values = line.Split(Delimiter);
-
-                                        var j = 0;
-
-                                        foreach(var header in headers)
-                                        {
-                                            expando.Add(header, values[j]);
-
-                                            j++;
-                                        }
-
-                                        _lineNumber++;
-
-                                        expando.Add("line", _lineNumber);
-                                        expando.Add("fileName", fileInfo.Name);
-                                        expando.Add("timestamp", DateTime.UtcNow);
-                                        expando.Add("moduleId", _moduleId);
-                                        expando.Add("deviceId", _deviceId);
-
-                                        var jsonMessage = JsonConvert.SerializeObject(expando);
-
-                                        // System.Console.WriteLine($"JSON '{jsonMessage}'");
-
-                                        var messageBytes = Encoding.UTF8.GetBytes(jsonMessage);
-
-                                        using (var message = new Message(messageBytes))
-                                        {
-                                            message.ContentEncoding = "utf-8";
-                                            message.ContentType = "application/json";
-                                        
-                                            message.Properties.Add("content-type", "iot-edge-filewatcher");
-
-                                            await client.SendEventAsync("output1", message);
-
-                                            count++;    
-
-                                            Console.WriteLine($"Message {count} sent");
-                                        }
-                                    }
-
-                                    i++;
-
-                                    Thread.Sleep(LineDelay);
-                                }
-                            }
-
-                            System.Console.WriteLine($"Processed {count} lines out of {lines.Length -1} lines found in the file");
-
                             var fi = new FileInfo(fileName);
+
+                            System.Console.WriteLine($"File found: '{fi.FullName}' - Size: {fi.Length} bytes.");
+
+                            // Create JSON message
+                            string messageBody = JsonSerializer.Serialize(
+                                new
+                                {
+                                    filename = fi.FullName,
+                                    filesize = fi.Length,
+                                });
+                            using var message = new Message(Encoding.ASCII.GetBytes(messageBody))
+                            {
+                                ContentType = "application/json",
+                                ContentEncoding = "utf-8",
+                            };
+
+                            // Send the message
+                            await client.SendEventAsync("output1", message);
+                            System.Console.WriteLine($"Sending message: {messageBody}");
 
                             var targetFullFilename = fi.FullName + RenameExtension;
                             
@@ -257,8 +185,6 @@ namespace FileWatcherModule
             }
         }
 
-        public static int LineDelay { get; set; } = DefaultLineDelay;
-        public static char Delimiter {get; set;} = DefaultDelimiter[0];
         public static int Interval {get; set;} = DefaultInterval;
 
         public static string RenameExtension {get; set;} = DefaultRenameExtension;
@@ -285,37 +211,6 @@ namespace FileWatcherModule
             {
                 var reportedProperties = new TwinCollection();
 
-                if (desiredProperties.Contains("delimiter")) 
-                {
-                    if (desiredProperties["delimiter"] != null)
-                    {
-                        var delimiter = desiredProperties["delimiter"];
-                        delimiter = delimiter.Trim();
-                        if (delimiter.Length > 0)
-                        {
-                            Delimiter = delimiter[0];
-                        }
-                        else
-                        {
-                            System.Console.WriteLine("Delimiter is incorrect.");
-                            Delimiter = DefaultDelimiter[0];
-                        }
-
-                    }
-                    else
-                    {
-                        Delimiter = DefaultDelimiter[0];
-                    }
-
-                    Console.WriteLine($"Delimiter changed to '{Delimiter}'");
-
-                    reportedProperties["delimiter"] = Delimiter;
-                } 
-                else
-                {
-                    Console.WriteLine($"Delimiter ignored");
-                }
-
                 if (desiredProperties.Contains("interval")) 
                 {
                     if (desiredProperties["interval"] != null)
@@ -334,26 +229,6 @@ namespace FileWatcherModule
                 else
                 {
                     Console.WriteLine($"Interval ignored");
-                }
-
-                if (desiredProperties.Contains("lineDelay")) 
-                {
-                    if (desiredProperties["lineDelay"] != null)
-                    {
-                        LineDelay = desiredProperties["lineDelay"];
-                    }
-                    else
-                    {
-                        LineDelay = DefaultLineDelay;
-                    }
-
-                    Console.WriteLine($"LineDelay changed to '{LineDelay}'");
-
-                    reportedProperties["lineDelay"] = LineDelay;
-                } 
-                else
-                {
-                    Console.WriteLine($"LineDelay ignored");
                 }
 
                 if (desiredProperties.Contains("renameExtension")) 
@@ -415,7 +290,6 @@ namespace FileWatcherModule
                 Console.WriteLine($"Error when receiving desired properties: {ex.Message}");
             }
         }
-
 
 
     }
